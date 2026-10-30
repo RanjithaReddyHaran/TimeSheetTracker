@@ -1,0 +1,62 @@
+@model Timesheet
+@{
+    ViewData["Title"] = "Timesheet details";
+    var projects = ViewBag.Projects as List<Project> ?? new();
+    var total = Model.Entries.Sum(x => x.Hours);
+    var canEdit = Model.Status is TimesheetStatus.Draft or TimesheetStatus.Rejected;
+}
+<div class="d-flex justify-content-between align-items-start mb-4">
+ <div><h1 class="h2 mb-1">Weekly timesheet</h1><p class="text-muted mb-0">@Model.Employee.FullName · Week of @Model.WeekStartDate.ToString("MMM dd, yyyy")</p></div>
+ <span class="badge fs-6 status-@Model.Status.ToString().ToLowerInvariant()">@Model.Status</span>
+</div>
+<div class="row g-3 mb-4">
+ <div class="col-sm-4"><div class="card card-body"><span class="text-muted">Total hours</span><strong class="display-6">@total.ToString("0.00")</strong></div></div>
+ <div class="col-sm-4"><div class="card card-body"><span class="text-muted">Entries</span><strong class="display-6">@Model.Entries.Count</strong></div></div>
+ <div class="col-sm-4"><div class="card card-body"><span class="text-muted">Status</span><strong class="h4 mt-2">@Model.Status</strong></div></div>
+</div>
+@if (!string.IsNullOrWhiteSpace(Model.ReviewComment)) {
+ <div class="alert alert-info"><strong>Manager comment:</strong> @Model.ReviewComment</div>
+}
+<div class="card mb-4">
+ <div class="card-header fw-semibold">Time entries</div>
+ <div class="table-responsive"><table class="table mb-0">
+  <thead><tr><th>Date</th><th>Project</th><th>Description</th><th class="text-end">Hours</th></tr></thead>
+  <tbody>
+  @foreach (var entry in Model.Entries.OrderBy(x => x.WorkDate)) {
+   <tr><td>@entry.WorkDate.ToString("ddd, MMM dd")</td><td>@entry.Project.ProjectCode — @entry.Project.Name</td><td>@entry.Description</td><td class="text-end">@entry.Hours.ToString("0.00")</td></tr>
+  }
+  @if (Model.Entries.Count == 0) { <tr><td colspan="4" class="text-center text-muted py-3">No entries added yet.</td></tr> }
+  </tbody>
+ </table></div>
+</div>
+@if (canEdit && Model.EmployeeId == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value) {
+ <div class="card mb-4">
+  <div class="card-header fw-semibold">Add time entry</div>
+  <div class="card-body">
+   <form asp-action="AddEntry" method="post" class="row g-3">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="TimesheetId" value="@Model.Id" />
+    <div class="col-md-3"><label class="form-label">Work date</label><input class="form-control" type="date" name="WorkDate" min="@Model.WeekStartDate.ToString("yyyy-MM-dd")" max="@Model.WeekStartDate.AddDays(6).ToString("yyyy-MM-dd")" required /></div>
+    <div class="col-md-3"><label class="form-label">Project</label><select class="form-select" name="ProjectId" required><option value="">Select project</option>@foreach (var p in projects) { <option value="@p.Id">@p.ProjectCode — @p.Name</option> }</select></div>
+    <div class="col-md-2"><label class="form-label">Hours</label><input class="form-control" type="number" name="Hours" min="0.25" max="24" step="0.25" required /></div>
+    <div class="col-md-4"><label class="form-label">Task description</label><input class="form-control" name="Description" maxlength="1000" minlength="3" required /></div>
+    <div class="col-12"><button class="btn btn-primary" type="submit">Add entry</button></div>
+   </form>
+  </div>
+ </div>
+ <form asp-action="Submit" method="post" class="mb-4">
+  @Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id" />
+  <button class="btn btn-success" type="submit" disabled="@(Model.Entries.Count == 0)">Submit for approval</button>
+ </form>
+}
+@if ((User.IsInRole("Manager") || User.IsInRole("Admin")) && Model.Status == TimesheetStatus.Submitted) {
+ <div class="card"><div class="card-header fw-semibold">Manager review</div><div class="card-body">
+  <form asp-action="Review" method="post">
+   @Html.AntiForgeryToken()<input type="hidden" name="TimesheetId" value="@Model.Id" />
+   <label class="form-label" for="Comment">Review comment (required for rejection)</label>
+   <textarea class="form-control mb-3" name="Comment" id="Comment" rows="2" maxlength="1000"></textarea>
+   <button class="btn btn-success me-2" name="approve" value="true" type="submit">Approve</button>
+   <button class="btn btn-outline-danger" name="approve" value="false" type="submit">Reject</button>
+  </form>
+ </div></div>
+}

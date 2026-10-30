@@ -1,0 +1,32 @@
+@model IReadOnlyList<Timesheet>
+@{
+    ViewData["Title"] = "Dashboard";
+    bool reviewer = ViewBag.IsReviewer;
+}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div><h1 class="h2 mb-1">Dashboard</h1><p class="text-muted mb-0">Timesheet activity and approval status</p></div>
+  @if (!reviewer) { <a class="btn btn-primary" asp-controller="Timesheets" asp-action="Create">Create this week's timesheet</a> }
+</div>
+@if (reviewer) {
+  <div class="row mb-4"><div class="col-md-4"><div class="card card-body"><span class="text-muted">Pending approvals</span><strong class="display-6">@ViewBag.PendingCount</strong></div></div></div>
+}
+<div class="card">
+ <div class="table-responsive">
+  <table class="table table-hover align-middle mb-0">
+   <thead><tr><th>Week starting</th>@if (reviewer) {<th>Employee</th>}<th>Total hours</th><th>Status</th><th>Last updated</th><th></th></tr></thead>
+   <tbody>
+   @foreach (var sheet in Model) {
+    <tr>
+      <td>@sheet.WeekStartDate.ToString("MMM dd, yyyy")</td>
+      @if (reviewer) { <td>@sheet.Employee.FullName</td> }
+      <td>@sheet.Entries.Sum(x => x.Hours).ToString("0.00")</td>
+      <td><span class="badge status-@sheet.Status.ToString().ToLowerInvariant()">@sheet.Status</span></td>
+      <td>@sheet.CreatedUtc.ToString("MMM dd, yyyy") UTC</td>
+      <td><a asp-controller="Timesheets" asp-action="Details" asp-route-id="@sheet.Id" class="btn btn-sm btn-outline-primary">Open</a></td>
+    </tr>
+   }
+   @if (Model.Count == 0) { <tr><td colspan="6" class="text-center text-muted py-4">No timesheets found.</td></tr> }
+   </tbody>
+  </table>
+ </div>
+</div>
